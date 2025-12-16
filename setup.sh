@@ -98,14 +98,14 @@ echo "Adding/updating cron job..."
 (crontab -l 2>/dev/null | grep -v "/opt/scripts/system-updates/system-updates.sh"; echo "# System Updates Discord Notification"
 echo "0 */6 * * * /bin/bash /opt/scripts/system-updates/system-updates.sh") | crontab -
 
-echo
+echo ""
 echo "Setup complete! Everything is ready."
 echo "The apt warning is now suppressed globally."
 echo "Your default avatar is the system-update packages icon."
 
-echo
+echo ""
 read -p "Test it right now and see the notification in Discord? [Y/n] " -n 1 -r
-echo
+echo ""
 if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
     echo "Running the test now..."
     echo "Running APT commands (this may take a moment)..."
@@ -118,5 +118,5 @@ else
     echo "  /opt/scripts/system-updates/system-updates.sh"
 fi
 
-echo
+echo ""
 echo "All set — clean, quiet, and beautiful notifications await!"
