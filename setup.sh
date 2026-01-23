@@ -47,6 +47,85 @@ echo ""
 echo "Cron service status:"
 systemctl status cron --no-pager || service cron status || true
 
+# ────────────────────────────────────────────────────────────────
+echo "Checking for Docker and setting up dockcheck (Docker image update notifier)..."
+
+if command -v docker >/dev/null 2>&1; then
+    echo "Docker is installed → proceeding with dockcheck setup."
+
+    DOCKCHECK_DIR="/opt/dockcheck"
+
+    # Clone or update dockcheck repo
+    if [ -d "$DOCKCHECK_DIR" ]; then
+        echo "dockcheck already exists, updating..."
+        cd "$DOCKCHECK_DIR"
+        git pull || echo "git pull failed — continuing anyway."
+        cd - >/dev/null
+    else
+        echo "Cloning dockcheck..."
+        git clone https://github.com/mag37/dockcheck.git "$DOCKCHECK_DIR"
+    fi
+
+    # Ensure we're in the dir
+    cd "$DOCKCHECK_DIR" || { echo "Failed to cd into $DOCKCHECK_DIR — skipping dockcheck."; continue; }
+
+    # Copy default.config → dockcheck.config (only if missing, to avoid overwriting custom edits)
+    if [ ! -f "dockcheck.config" ]; then
+        if [ -f "default.config" ]; then
+            cp default.config dockcheck.config
+            echo "Created dockcheck.config from default.config"
+        else
+            echo "Warning: default.config not found in repo — skipping config setup."
+            continue
+        fi
+    else
+        echo "dockcheck.config already exists — preserving it and only updating notification settings."
+    fi
+
+    # Load the existing webhook from system-updates (we already prompted for it earlier)
+    if [ -f "/opt/scripts/system-updates/.webhook" ]; then
+        DISCORD_WEBHOOK=$(</opt/scripts/system-updates/.webhook)
+    else
+        echo "Warning: No .webhook file found — cannot set Discord URL. Skipping dockcheck config update."
+        continue
+    fi
+
+    # Update the two key lines in dockcheck.config (using sed for in-place replacement)
+    # - Uncomment/set NOTIFY_CHANNELS if needed
+    # - Set DISCORD_WEBHOOK_URL with quotes
+    sed -i '/^#*NOTIFY_CHANNELS=/s/.*/NOTIFY_CHANNELS="discord"/' dockcheck.config
+    sed -i "/^DISCORD_WEBHOOK_URL=/s#.*#DISCORD_WEBHOOK_URL=\"$DISCORD_WEBHOOK\"#" dockcheck.config
+
+    echo "Updated dockcheck.config with Discord notification settings."
+
+    # Add to system-wide crontab (idempotent)
+    echo "Adding dockcheck cron job to /etc/crontab..."
+    DOCKCHECK_CRON_COMMENT="# Docker Image Update Check (dockcheck) - checks only, notifies via Discord (added $(date '+%Y-%m-%d %H:%M'))"
+    DOCKCHECK_CRON_LINE="0 */6 * * * root /bin/bash /opt/dockcheck/dockcheck.sh -i -n"
+
+    if grep -qF "/opt/dockcheck/dockcheck.sh -i -n" /etc/crontab; then
+        echo "dockcheck cron job already exists — skipping."
+    else
+        {
+            echo ""
+            echo "$DOCKCHECK_CRON_COMMENT"
+            echo "$DOCKCHECK_CRON_LINE"
+        } >> /etc/crontab
+        echo "dockcheck cron job added."
+    fi
+
+    # Reload cron
+    systemctl restart cron 2>/dev/null || /etc/init.d/cron restart || service cron restart || true
+
+    # Quick verification
+    echo ""
+    echo "Last 10 lines of /etc/crontab (should show dockcheck entry if added):"
+    tail -n 10 /etc/crontab
+
+else
+    echo "Docker not found — skipping dockcheck setup."
+fi
+
 echo "Cloning/updating discord.sh..."
 mkdir -p /opt
 cd /opt
