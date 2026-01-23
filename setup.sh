@@ -9,7 +9,7 @@ fi
 
 echo "Installing required packages..."
 apt update
-apt install -y git jq cron  # Added 'cron' explicitly just in case
+apt install -y git jq cron regctl # Added 'cron' explicitly just in case
 
 echo "Cleaning up any old user crontab entry (prevents duplicates)..."
 (crontab -l 2>/dev/null | grep -v "/opt/scripts/system-updates/system-updates.sh") | crontab - || true
