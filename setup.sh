@@ -11,6 +11,9 @@ echo "Installing required packages..."
 apt update
 apt install -y git jq cron  # Added 'cron' explicitly just in case
 
+echo "Cleaning up any old user crontab entry (prevents duplicates)..."
+(crontab -l 2>/dev/null | grep -v "/opt/scripts/system-updates/system-updates.sh") | crontab - || true
+
 # Ensure cron is running (helps in minimal LXCs)
 systemctl enable --now cron 2>/dev/null || /etc/init.d/cron start || true
 
