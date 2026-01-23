@@ -9,44 +9,40 @@ fi
 
 echo "Installing required packages..."
 apt update
-apt install -y git jq
+apt install -y git jq cron  # Added 'cron' explicitly just in case
 
-echo "Adding/updating root user crontab job..."
+# Ensure cron is running (helps in minimal LXCs)
+systemctl enable --now cron 2>/dev/null || /etc/init.d/cron start || true
 
-# Ensure cron is fully ready
-if ! command -v crontab >/dev/null 2>&1; then
-    echo "crontab command not found — installing cron..."
-    apt install -y cron
-fi
+echo "Adding job directly to /etc/crontab (most reliable in Proxmox LXC)..."
 
-# Start/enable cron (systemd preferred, fallback for sysvinit/old)
-if systemctl is-system-running >/dev/null 2>&1; then
-    systemctl enable cron --now || true
-    systemctl restart cron || true
+CRON_COMMENT="# System Updates Discord Notification (added $(date '+%Y-%m-%d %H:%M'))"
+CRON_LINE="0 */6 * * * root /bin/bash /opt/scripts/system-updates/system-updates.sh"
+
+# Check if already present (exact match on script path)
+if grep -qF "/opt/scripts/system-updates/system-updates.sh" /etc/crontab; then
+    echo "Job already exists in /etc/crontab — no changes needed."
 else
-    /etc/init.d/cron start || true
-fi
-
-# Wait a moment for daemon to settle (helps in containers)
-sleep 2
-
-# Now add the job (idempotent: remove old one first)
-CURRENT_CRON=$(crontab -l 2>/dev/null || true)
-if echo "$CURRENT_CRON" | grep -q "/opt/scripts/system-updates/system-updates.sh"; then
-    echo "Cron job already exists — skipping add."
-else
-    (
-        echo "$CURRENT_CRON"
+    # Append safely with blank line separation
+    {
         echo ""
-        echo "# System Updates Discord Notification"
-        echo "0 */6 * * * /bin/bash /opt/scripts/system-updates/system-updates.sh"
-    ) | crontab -
-    echo "Cron job added."
+        echo "$CRON_COMMENT"
+        echo "$CRON_LINE"
+    } >> /etc/crontab
+    echo "Job added to /etc/crontab."
 fi
 
-# Quick verification
-echo "Current root crontab:"
-crontab -l || echo "(crontab -l shows nothing — check if cron is running!)"
+# Reload cron to apply changes immediately
+systemctl restart cron 2>/dev/null || /etc/init.d/cron restart || service cron restart || true
+
+# Quick verification (helpful during setup)
+echo ""
+echo "Last 10 lines of /etc/crontab (should show your new entry):"
+tail -n 10 /etc/crontab
+
+echo ""
+echo "Cron service status:"
+systemctl status cron --no-pager || service cron status || true
 
 echo "Cloning/updating discord.sh..."
 mkdir -p /opt
@@ -130,10 +126,6 @@ else
 fi
 echo "$AVATAR" > .avatar
 chmod 600 .avatar
-
-echo "Adding/updating cron job..."
-(crontab -l 2>/dev/null | grep -v "/opt/scripts/system-updates/system-updates.sh"; echo "# System Updates Discord Notification"
-echo "0 */6 * * * /bin/bash /opt/scripts/system-updates/system-updates.sh") | crontab -
 
 echo ""
 echo "Setup complete! Everything is ready."
