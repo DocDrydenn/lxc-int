@@ -9,7 +9,7 @@ fi
 
 echo "Installing required packages..."
 apt update
-apt install -y git jq cron regctl # Added 'cron' explicitly just in case
+apt install -y git jq cron # Added 'cron' explicitly just in case
 
 echo "Cleaning up any old user crontab entry (prevents duplicates)..."
 (crontab -l 2>/dev/null | grep -v "/opt/scripts/system-updates/system-updates.sh") | crontab - || true
@@ -68,6 +68,51 @@ if command -v docker >/dev/null 2>&1; then
 
     # Ensure we're in the dir
     cd "$DOCKCHECK_DIR" || { echo "Failed to cd into $DOCKCHECK_DIR — skipping dockcheck."; continue; }
+
+    # ────────────────────────────────────────────────────────────────
+    echo "Ensuring regctl dependency is installed (required by dockcheck, non-interactive)..."
+
+    # Detect architecture (dockcheck supports amd64/arm64 natively; others may need workaround later)
+    ARCH=$(uname -m)
+    case $ARCH in
+        x86_64) REGCTL_ARCH="amd64" ;;
+        aarch64|arm64) REGCTL_ARCH="arm64" ;;
+        *) 
+            echo "Warning: Unsupported architecture ($ARCH) for native regctl binary. dockcheck may need a container wrapper later. Skipping auto-install."
+            REGCTL_ARCH="" 
+            ;;
+    esac
+
+    if [ -n "$REGCTL_ARCH" ]; then
+        # Check if regctl already exists in PATH or local dir
+        if ! command -v regctl >/dev/null 2>&1 && [ ! -f "./regctl" ]; then
+            echo "regctl not found → downloading and installing latest static binary (non-interactive)..."
+
+            # Get latest release tag
+            LATEST_TAG=$(curl -s https://api.github.com/repos/regclient/regclient/releases/latest | grep '"tag_name":' | sed -E 's/.*"tag_name": "v([^"]+)".*/\1/')
+
+            if [ -z "$LATEST_TAG" ]; then
+                echo "Failed to fetch latest regctl version — skipping install. Manual install may be needed."
+            else
+                # Download binary
+                curl -L -o regctl "https://github.com/regclient/regclient/releases/download/v${LATEST_TAG}/regctl-linux-${REGCTL_ARCH}" || {
+                    echo "Download failed — skipping regctl install."
+                    continue
+                }
+
+                chmod +x regctl
+                echo "regctl installed locally in $DOCKCHECK_DIR/regctl"
+
+                # Optional: Move to /usr/local/bin for global PATH (recommended for cron reliability)
+                # mv regctl /usr/local/bin/regctl || echo "Could not move to /usr/local/bin — keeping local."
+                # But keeping local is fine since dockcheck checks PWD too
+            fi
+        else
+            echo "regctl already present — skipping install."
+        fi
+    else
+        echo "Non-standard arch — regctl not auto-installed. Consider manual setup or wrapper per dockcheck docs."
+    fi
 
     # Copy default.config → dockcheck.config (only if missing, to avoid overwriting custom edits)
     if [ ! -f "dockcheck.config" ]; then
