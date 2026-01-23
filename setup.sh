@@ -91,10 +91,12 @@ if command -v docker >/dev/null 2>&1; then
     fi
 
     # Update the two key lines in dockcheck.config (using sed for in-place replacement)
-    # - Uncomment/set NOTIFY_CHANNELS if needed
-    # - Set DISCORD_WEBHOOK_URL with quotes
-    sed -i '/^#*NOTIFY_CHANNELS=/s/.*/NOTIFY_CHANNELS="discord"/' dockcheck.config
-    sed -i "/^DISCORD_WEBHOOK_URL=/s#.*#DISCORD_WEBHOOK_URL=\"$DISCORD_WEBHOOK\"#" dockcheck.config
+        
+    # Update NOTIFY_CHANNELS: remove leading # (if present), ignore leading spaces, set to "discord"
+    sed -i 's/^[[:space:]]*#*[[:space:]]*NOTIFY_CHANNELS=.*/NOTIFY_CHANNELS="discord"/' dockcheck.config
+
+    # Update DISCORD_WEBHOOK_URL: same idea, set full value with quotes (using | as delimiter to avoid / escaping issues)
+    sed -i "s|^[[:space:]]*#*[[:space:]]*DISCORD_WEBHOOK_URL=.*|DISCORD_WEBHOOK_URL=\"$DISCORD_WEBHOOK\"|" dockcheck.config
 
     echo "Updated dockcheck.config with Discord notification settings."
 
