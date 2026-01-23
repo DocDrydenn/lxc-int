@@ -11,6 +11,14 @@ echo "Installing required packages..."
 apt update
 apt install -y git jq
 
+echo "Installing and starting cron if needed..."
+apt install -y cron
+if [ -d /run/systemd/system ]; then
+    systemctl enable --now cron
+else
+    /etc/init.d/cron start || true
+fi
+
 echo "Cloning/updating discord.sh..."
 mkdir -p /opt
 cd /opt
