@@ -11,13 +11,42 @@ echo "Installing required packages..."
 apt update
 apt install -y git jq
 
-echo "Installing and starting cron if needed..."
-apt install -y cron
-if [ -d /run/systemd/system ]; then
-    systemctl enable --now cron
+echo "Adding/updating root user crontab job..."
+
+# Ensure cron is fully ready
+if ! command -v crontab >/dev/null 2>&1; then
+    echo "crontab command not found — installing cron..."
+    apt install -y cron
+fi
+
+# Start/enable cron (systemd preferred, fallback for sysvinit/old)
+if systemctl is-system-running >/dev/null 2>&1; then
+    systemctl enable cron --now || true
+    systemctl restart cron || true
 else
     /etc/init.d/cron start || true
 fi
+
+# Wait a moment for daemon to settle (helps in containers)
+sleep 2
+
+# Now add the job (idempotent: remove old one first)
+CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+if echo "$CURRENT_CRON" | grep -q "/opt/scripts/system-updates/system-updates.sh"; then
+    echo "Cron job already exists — skipping add."
+else
+    (
+        echo "$CURRENT_CRON"
+        echo ""
+        echo "# System Updates Discord Notification"
+        echo "0 */6 * * * /bin/bash /opt/scripts/system-updates/system-updates.sh"
+    ) | crontab -
+    echo "Cron job added."
+fi
+
+# Quick verification
+echo "Current root crontab:"
+crontab -l || echo "(crontab -l shows nothing — check if cron is running!)"
 
 echo "Cloning/updating discord.sh..."
 mkdir -p /opt
