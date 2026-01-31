@@ -176,32 +176,62 @@ fi
 # ────────────────────────────────────────────────────────────────
 echo "Setting up fastfetch + custom service-icon MOTD (ASCII art via imgproxy)..."
 
-# Install fastfetch and jp2a (jp2a for PNG → colored ASCII)
-echo "Installing fastfetch and jp2a..."
+echo "Installing jp2a (for PNG → colored ASCII)..."
 apt update -qq
-apt install -y jp2a 2>/dev/null || true
+apt install -y jp2a 2>/dev/null || echo "jp2a install attempted."
 
+# Try apt first (available in trixie+, but version may be older)
 if ! command -v fastfetch >/dev/null 2>&1; then
-    echo "fastfetch not in apt → downloading latest .deb from GitHub..."
-    ARCH=$(dpkg --print-architecture)  # amd64 or arm64
-    LATEST_TAG=$(curl -s https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest | grep '"tag_name":' | sed -E 's/.*"tag_name": "v([^"]+)".*/\1/')
-    if [ -n "$LATEST_TAG" ]; then
-        DEB_URL="https://github.com/fastfetch-cli/fastfetch/releases/download/v${LATEST_TAG}/fastfetch-linux-${ARCH}.deb"
-        curl -L -o /tmp/fastfetch.deb "$DEB_URL" && \
-            dpkg -i /tmp/fastfetch.deb || apt install -f -y
-        rm -f /tmp/fastfetch.deb
-    else
-        echo "Warning: Could not fetch fastfetch latest tag — install manually if needed."
-    fi
-else
-    echo "fastfetch already installed."
+    echo "Trying to install fastfetch via apt..."
+    apt install -y fastfetch 2>/dev/null || echo "fastfetch not available in apt repos (common on trixie)."
 fi
 
-# Ensure we have it now
+# If still missing, download from GitHub releases (latest as of 2026 is ~2.58.0, no 'v' prefix)
+if ! command -v fastfetch >/dev/null 2>&1; then
+    echo "fastfetch not found → downloading latest .deb from GitHub..."
+
+    ARCH=$(dpkg --print-architecture)
+    case $ARCH in
+        amd64)   DL_ARCH="amd64" ;;
+        arm64|aarch64) DL_ARCH="aarch64" ;;
+        *) 
+            echo "Unsupported architecture ($ARCH) for fastfetch .deb — install manually from https://github.com/fastfetch-cli/fastfetch/releases"
+            DL_ARCH=""
+            ;;
+    esac
+
+    if [ -n "$DL_ARCH" ]; then
+        # Fetch latest tag (no 'v' prefix in recent releases)
+        LATEST_TAG=$(curl -s https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest | grep '"tag_name":' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/' | sed 's/^v//')  # strip any leading 'v' if present
+
+        if [ -z "$LATEST_TAG" ]; then
+            echo "Failed to fetch latest fastfetch tag — manual install required."
+        else
+            DEB_NAME="fastfetch-linux-${DL_ARCH}.deb"
+            DEB_URL="https://github.com/fastfetch-cli/fastfetch/releases/download/${LATEST_TAG}/${DEB_NAME}"
+
+            echo "Downloading ${DEB_NAME} from tag ${LATEST_TAG}..."
+            curl -L -o /tmp/fastfetch.deb "$DEB_URL" || {
+                echo "Download failed (bad URL or network). Check: $DEB_URL"
+                rm -f /tmp/fastfetch.deb
+            }
+
+            if [ -f /tmp/fastfetch.deb ]; then
+                echo "Installing downloaded .deb..."
+                dpkg -i /tmp/fastfetch.deb || apt install -f -y  # fix dependencies if needed
+                rm -f /tmp/fastfetch.deb
+            fi
+        fi
+    fi
+else
+    echo "fastfetch already installed (version: $(fastfetch --version 2>/dev/null || echo 'unknown'))."
+fi
+
+# Final check
 if command -v fastfetch >/dev/null 2>&1; then
     echo "fastfetch ready."
 else
-    echo "Warning: fastfetch install failed — MOTD will fall back to text-only info."
+    echo "Warning: fastfetch installation failed. MOTD will show text-only info (no ASCII logo). Install manually: https://github.com/fastfetch-cli/fastfetch/releases"
 fi
 
 # Blank out static /etc/motd (prevents old distro logo from showing)
