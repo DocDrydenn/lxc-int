@@ -330,6 +330,11 @@ chmod 600 .service_icon_url
 # Base64-encode the URL
 BASE64_URL=$(echo -n "$SERVICE_ICON_URL" | base64 -w0)
 
+# Ensure at least one = padding (your imgproxy requires it)
+if [[ ! "$BASE64_URL" =~ =$ ]]; then
+    BASE64_URL="${BASE64_URL}="
+fi
+
 # Create/update dynamic MOTD script in /etc/profile.d (always overwrite to apply any changes)
 MOTD_SCRIPT="/etc/profile.d/motd.sh"
 echo "Updating $MOTD_SCRIPT with service icon..."
