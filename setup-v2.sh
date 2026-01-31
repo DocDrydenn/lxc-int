@@ -322,7 +322,7 @@ echo "$AVATAR" > .avatar
 chmod 600 .avatar
 
 SERVICE_ICON_DEFAULT="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/debian.png"
-SERVICE_ICON_URL=$(prompt_with_default ".service_icon_url" "Enter the raw PNG URL for your service icon (e.g., https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/radarr.png) [default: $SERVICE_ICON_DEFAULT]")
+SERVICE_ICON_URL=$(prompt_with_default ".service_icon_url" "Enter the raw PNG URL for your service icon [default: $SERVICE_ICON_DEFAULT]")
 SERVICE_ICON_URL=${SERVICE_ICON_URL:-$SERVICE_ICON_DEFAULT}
 echo "$SERVICE_ICON_URL" > .service_icon_url
 chmod 600 .service_icon_url
@@ -348,7 +348,7 @@ printf "\n"
 
 # Custom service ASCII via imgproxy + jp2a → fastfetch
 curl -s 'https://imgproxy.docdrydenn.com/@base64/$BASE64_URL' \\
-    | jp2a --colors --width=50 --background=light - 2>/dev/null \\
+    | jp2a --colors --width=50 - 2>/dev/null \\
     | fastfetch --file - 2>/dev/null || fastfetch --logo-type none
 
 printf "\n"
