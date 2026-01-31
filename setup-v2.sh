@@ -332,27 +332,30 @@ BASE64_URL=$(echo -n "$SERVICE_ICON_URL" | base64 -w0)
 
 # Create/update dynamic MOTD script in /etc/profile.d (always overwrite to apply any changes)
 MOTD_SCRIPT="/etc/profile.d/motd.sh"
-echo "Creating/updating $MOTD_SCRIPT with the provided service icon URL..."
+echo "Updating $MOTD_SCRIPT with service icon..."
+
+# Remove any old LXD/Proxmox details script if it exists
+OLD_LXD_SCRIPT="/etc/profile.d/00_lxd-details.sh"
+if [ -f "$OLD_LXD_SCRIPT" ]; then
+    echo "Removing old LXD details script: $OLD_LXD_SCRIPT"
+    rm -f "$OLD_LXD_SCRIPT"
+fi
 
 cat > "$MOTD_SCRIPT" << EOF
 #!/bin/bash
 
-# Add a bit of spacing before the art/info
 printf "\n"
 
-# ────────────────────────────────────────────────
-# Custom service ASCII logo via your imgproxy + homarr-labs icons
-# (Generated from stored .service_icon_url — rerun init script to change)
+# Custom service ASCII via imgproxy + jp2a → fastfetch
 curl -s 'https://imgproxy.docdrydenn.com/@base64/$BASE64_URL' \\
     | jp2a --colors --width=50 --background=light - 2>/dev/null \\
-    | fastfetch --file - --logo-type none 2>/dev/null || fastfetch --logo-type none
+    | fastfetch --file - 2>/dev/null || fastfetch --logo-type none
 
-# Extra spacing after
 printf "\n"
 EOF
 
 chmod +x "$MOTD_SCRIPT"
-echo "MOTD script updated with service icon: $SERVICE_ICON_URL"
+echo "MOTD updated with icon: $SERVICE_ICON_URL"
 
 # Quick post-setup info (only show once)
 if [ ! -f /opt/scripts/.fastfetch_motd_setup ]; then
