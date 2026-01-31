@@ -335,7 +335,7 @@ MOTD_SCRIPT="/etc/profile.d/motd.sh"
 echo "Updating $MOTD_SCRIPT with service icon..."
 
 # Remove any old LXD/Proxmox details script if it exists
-OLD_LXD_SCRIPT="/etc/profile.d/00_lxd-details.sh"
+OLD_LXD_SCRIPT="/etc/profile.d/00_lxc-details.sh"
 if [ -f "$OLD_LXD_SCRIPT" ]; then
     echo "Removing old LXD details script: $OLD_LXD_SCRIPT"
     rm -f "$OLD_LXD_SCRIPT"
