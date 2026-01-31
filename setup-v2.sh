@@ -353,7 +353,7 @@ printf "\n"
 
 # Custom service ASCII via imgproxy + jp2a → fastfetch
 curl -s 'https://imgproxy.docdrydenn.com/@base64/$BASE64_URL' \\
-    | jp2a --colors --width=50 - 2>/dev/null \\
+    | jp2a --colors --width=40 - 2>/dev/null \\
     | fastfetch --file - 2>/dev/null || fastfetch --logo-type none
 
 printf "\n"
