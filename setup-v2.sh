@@ -395,4 +395,10 @@ else
 fi
 
 echo ""
+echo "Testing MOTD output right now (this is what you'll see on next login):"
+echo "───────────────────────────────────────────────────────────────"
+source /etc/profile.d/motd.sh
+echo "───────────────────────────────────────────────────────────────"
+echo ""
+
 echo "All set — clean, quiet, and beautiful notifications await!"
