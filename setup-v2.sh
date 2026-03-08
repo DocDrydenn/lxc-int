@@ -19,20 +19,35 @@ systemctl enable --now cron 2>/dev/null || /etc/init.d/cron start || true
 
 echo "Adding job directly to /etc/crontab (most reliable in Proxmox LXC)..."
 
+# ── System-updates cron job ──────────────────────────────────────
 CRON_COMMENT="# System Updates Discord Notification (added $(date '+%Y-%m-%d %H:%M'))"
-CRON_LINE="0 */6 * * * root /bin/bash /opt/scripts/system-updates/system-updates.sh"
+CRON_LINE="0 */6 * * * root /bin/bash /opt/scripts/system-updates/system-updates.sh >> /var/log/system-updates-cron.log 2>&1"
 
-# Check if already present (exact match on script path)
+echo "Handling system-updates cron job..."
+
 if grep -qF "/opt/scripts/system-updates/system-updates.sh" /etc/crontab; then
-    echo "Job already exists in /etc/crontab — no changes needed."
+    if grep -qF ">> /var/log/system-updates-cron.log" /etc/crontab; then
+        echo "system-updates job already has logging — skipping."
+    else
+        echo "Upgrading system-updates cron job to include logging..."
+        sed -i '/\/opt\/scripts\/system-updates\/system-updates.sh[[:space:]]*$/d' /etc/crontab
+        # Also remove any very old variants without flags if you want to be thorough
+        # sed -i '/\/opt\/scripts\/system-updates\/system-updates.sh/d' /etc/crontab   # broader, use with caution
+        {
+            echo ""
+            echo "$CRON_COMMENT"
+            echo "$CRON_LINE"
+        } >> /etc/crontab
+        echo "Upgraded system-updates job."
+    fi
 else
-    # Append safely with blank line separation
+    echo "Adding system-updates cron job..."
     {
         echo ""
         echo "$CRON_COMMENT"
         echo "$CRON_LINE"
     } >> /etc/crontab
-    echo "Job added to /etc/crontab."
+    echo "Added."
 fi
 
 # Reload cron to apply changes immediately
@@ -145,20 +160,33 @@ if command -v docker >/dev/null 2>&1; then
 
     echo "Updated dockcheck.config with Discord notification settings."
 
-    # Add to system-wide crontab (idempotent)
-    echo "Adding dockcheck cron job to /etc/crontab..."
+    # ── Dockcheck cron job ───────────────────────────────────────────
     DOCKCHECK_CRON_COMMENT="# Docker Image Update Check (dockcheck) - checks only, notifies via Discord (added $(date '+%Y-%m-%d %H:%M'))"
-    DOCKCHECK_CRON_LINE="0 */6 * * * root /bin/bash /opt/dockcheck/dockcheck.sh -i -n"
+    DOCKCHECK_CRON_LINE="0 */6 * * * root /bin/bash /opt/dockcheck/dockcheck.sh -i -n >> /var/log/dockcheck-cron.log 2>&1"
+
+    echo "Handling dockcheck cron job..."
 
     if grep -qF "/opt/dockcheck/dockcheck.sh -i -n" /etc/crontab; then
-        echo "dockcheck cron job already exists — skipping."
+        if grep -qF ">> /var/log/dockcheck-cron.log" /etc/crontab; then
+            echo "dockcheck job already has logging — skipping."
+        else
+            echo "Upgrading dockcheck cron job to include logging..."
+            sed -i '/\/opt\/dockcheck\/dockcheck.sh -i -n[[:space:]]*$/d' /etc/crontab
+            {
+                echo ""
+                echo "$DOCKCHECK_CRON_COMMENT"
+                echo "$DOCKCHECK_CRON_LINE"
+            } >> /etc/crontab
+            echo "Upgraded dockcheck job."
+        fi
     else
+        echo "Adding dockcheck cron job..."
         {
             echo ""
             echo "$DOCKCHECK_CRON_COMMENT"
             echo "$DOCKCHECK_CRON_LINE"
         } >> /etc/crontab
-        echo "dockcheck cron job added."
+        echo "Added."
     fi
 
     # Reload cron
@@ -373,6 +401,13 @@ if [ ! -f /opt/scripts/.fastfetch_motd_setup ]; then
     echo ""
     touch /opt/scripts/.fastfetch_motd_setup
 fi
+
+# Create log files if they don't exist + set reasonable permissions
+for log in system-updates-cron.log dockcheck-cron.log; do
+    touch "/var/log/$log"
+    chown root:root "/var/log/$log"
+    chmod 644 "/var/log/$log"
+done
 
 echo ""
 echo "Setup complete! Everything is ready."
