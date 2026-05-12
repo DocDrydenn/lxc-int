@@ -363,6 +363,66 @@ if [[ ! "$BASE64_URL" =~ =$ ]]; then
     BASE64_URL="${BASE64_URL}="
 fi
 
+# ── SSH Key Setup from Git Repo ─────────────────────────────────────
+echo ""
+echo "=== SSH Public Key Setup ==="
+
+# Configuration
+SSH_USER="root"  # Change to your preferred username if you create a non-root user later
+KEYS_URL="https://raw.githubusercontent.com/DocDrydenn/lxc-int/main/ssh-keys/authorized_keys"
+
+# Determine SSH directory
+if [ "$SSH_USER" = "root" ]; then
+    SSH_DIR="/root/.ssh"
+else
+    SSH_DIR="/home/$SSH_USER/.ssh"
+    # Ensure user exists
+    if ! id "$SSH_USER" >/dev/null 2>&1; then
+        echo "Creating user $SSH_USER..."
+        useradd -m -s /bin/bash "$SSH_USER"
+        usermod -aG sudo "$SSH_USER"  # Add to sudo group
+    fi
+fi
+
+mkdir -p "$SSH_DIR"
+chmod 700 "$SSH_DIR"
+
+AUTHORIZED_KEYS="$SSH_DIR/authorized_keys"
+
+echo "Fetching latest SSH public keys from git repo..."
+
+if curl -fsSL "$KEYS_URL" -o /tmp/repo_keys; then
+    if [ -s /tmp/repo_keys ] && grep -q "^ssh-" /tmp/repo_keys; then
+        # Count keys before
+        BEFORE=$(wc -l < "$AUTHORIZED_KEYS" 2>/dev/null || echo 0)
+
+        # Append and remove duplicates
+        cat /tmp/repo_keys >> "$AUTHORIZED_KEYS"
+        sort -u "$AUTHORIZED_KEYS" -o "$AUTHORIZED_KEYS"
+
+        AFTER=$(wc -l < "$AUTHORIZED_KEYS")
+
+        if [ "$AFTER" -gt "$BEFORE" ]; then
+            echo "✅ Added/updated SSH keys ($((AFTER - BEFORE)) new key(s))."
+        else
+            echo "✅ SSH keys already up to date."
+        fi
+    else
+        echo "⚠️ Downloaded file exists but contains no valid SSH keys."
+    fi
+else
+    echo "❌ Could not download keys from:"
+    echo "   $KEYS_URL"
+    echo "   Make sure the file exists in your repo and the URL is correct."
+fi
+
+# Always fix permissions (safe to run multiple times)
+chmod 600 "$AUTHORIZED_KEYS" 2>/dev/null || true
+chown -R "$SSH_USER":"$SSH_USER" "$SSH_DIR" 2>/dev/null || true
+
+echo "SSH keys configured for user: $SSH_USER"
+echo "   → You should now be able to SSH with your key."
+
 # Create/update dynamic MOTD script in /etc/profile.d (always overwrite to apply any changes)
 MOTD_SCRIPT="/etc/profile.d/motd.sh"
 echo "Updating $MOTD_SCRIPT with service icon..."
