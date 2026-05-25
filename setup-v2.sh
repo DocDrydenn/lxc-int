@@ -423,6 +423,66 @@ chown -R "$SSH_USER":"$SSH_USER" "$SSH_DIR" 2>/dev/null || true
 echo "SSH keys configured for user: $SSH_USER"
 echo "   → You should now be able to SSH with your key."
 
+# ── Jarvis AI Agent Dedicated Account Setup ─────────────────────────────
+echo ""
+echo "=== Jarvis AI Agent Service Account Setup ==="
+
+JARVIS_USER="jarvis"
+
+if ! id "$JARVIS_USER" >/dev/null 2>&1; then
+    echo "Creating dedicated user '$JARVIS_USER'..."
+    adduser --disabled-password --gecos "" "$JARVIS_USER"
+    echo "User '$JARVIS_USER' created."
+else
+    echo "User '$JARVIS_USER' already exists."
+fi
+
+# Passwordless sudo
+echo "Setting up passwordless sudo for $JARVIS_USER..."
+cat > /etc/sudoers.d/jarvis << EOF
+$JARVIS_USER ALL=(ALL) NOPASSWD: ALL
+EOF
+chmod 0440 /etc/sudoers.d/jarvis
+echo "Passwordless sudo configured for jarvis."
+
+# SSH Key Setup for Jarvis
+SSH_DIR="/home/$JARVIS_USER/.ssh"
+mkdir -p "$SSH_DIR"
+chmod 700 "$SSH_DIR"
+chown "$JARVIS_USER":"$JARVIS_USER" "$SSH_DIR"
+
+AUTHORIZED_KEYS="$SSH_DIR/authorized_keys"
+
+echo "Fetching latest SSH public keys for jarvis..."
+
+if curl -fsSL "$KEYS_URL" -o /tmp/repo_keys; then
+    if [ -s /tmp/repo_keys ] && grep -q "^ssh-" /tmp/repo_keys; then
+        BEFORE=$(wc -l < "$AUTHORIZED_KEYS" 2>/dev/null || echo 0)
+        cat /tmp/repo_keys >> "$AUTHORIZED_KEYS"
+        sort -u "$AUTHORIZED_KEYS" -o "$AUTHORIZED_KEYS"
+        AFTER=$(wc -l < "$AUTHORIZED_KEYS")
+
+        if [ "$AFTER" -gt "$BEFORE" ]; then
+            echo "✅ Added/updated SSH keys for jarvis ($((AFTER - BEFORE)) new key(s))."
+        else
+            echo "✅ SSH keys for jarvis already up to date."
+        fi
+    else
+        echo "⚠️ No valid SSH keys found in downloaded file."
+    fi
+else
+    echo "❌ Could not download keys from $KEYS_URL"
+fi
+
+chmod 600 "$AUTHORIZED_KEYS" 2>/dev/null || true
+chown "$JARVIS_USER":"$JARVIS_USER" "$AUTHORIZED_KEYS" 2>/dev/null || true
+
+echo "✅ Jarvis account setup complete!"
+echo "   → Username : jarvis"
+echo "   → Has full passwordless sudo"
+echo "   → SSH keys installed"
+echo ""
+
 # Create/update dynamic MOTD script in /etc/profile.d (always overwrite to apply any changes)
 MOTD_SCRIPT="/etc/profile.d/motd.sh"
 echo "Updating $MOTD_SCRIPT with service icon..."
