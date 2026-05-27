@@ -437,21 +437,29 @@ else
     echo "User '$JARVIS_USER' already exists."
 fi
 
-# ── Secure Scoped Sudoers for Jarvis ─────────────────────────────
+# ── Jarvis User Group Management ─────────────────────────────
+echo "Configuring groups for $JARVIS_USER..."
+
+# Remove from sudo group on Ubuntu/Mint/Debian to prevent conflicts
+if groups "$JARVIS_USER" | grep -q "\bsudo\b"; then
+    echo "Removing $JARVIS_USER from sudo group to avoid rule conflicts..."
+    deluser "$JARVIS_USER" sudo
+fi
+
+# Optional: Keep in other useful groups
+usermod -aG docker "$JARVIS_USER" 2>/dev/null || true   # For docker commands without sudo
+
+# ── Secure Scoped Sudoers for Jarvis (with precedence fix) ─────────────────────────────
 echo "Setting up scoped sudo permissions for $JARVIS_USER (Hermes-Agent)..."
 
-cat > /etc/sudoers.d/jarvis << 'EOF'
+# Use 99-jarvis so it loads LAST (highest priority)
+cat > /etc/sudoers.d/99-jarvis << 'EOF'
 # Hermes-Agent (Jarvis) - Secure scoped permissions for homelab management
+# Using 99- prefix to ensure rules take precedence over %sudo group
 
 # === Package Management ===
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt update
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt upgrade
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt full-upgrade
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt autoremove
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt autoclean
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt install *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt remove *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt purge *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt-get *
 
 # === Docker ===
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker system prune -f
@@ -474,7 +482,7 @@ jarvis ALL=(ALL) NOPASSWD: /usr/bin/df -h
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/free -h
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/top -b -n *
 
-# === ZFS Commands (Safe monitoring + basic maintenance) ===
+# === ZFS Commands ===
 jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool status *
 jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool iostat *
 jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool list *
@@ -504,8 +512,12 @@ jarvis ALL=(ALL) !/usr/sbin/zfs send *
 jarvis ALL=(ALL) !/usr/sbin/zfs receive *
 EOF
 
-chmod 0440 /etc/sudoers.d/jarvis
-echo "✅ Scoped sudo permissions configured for jarvis (ZFS + Proxmox support)."
+chmod 0440 /etc/sudoers.d/99-jarvis
+
+# Clean up old file if it exists
+rm -f /etc/sudoers.d/jarvis
+
+echo "✅ Scoped sudo permissions configured for jarvis (99-jarvis - highest priority)."
 
 # SSH Key Setup for Jarvis
 SSH_DIR="/home/$JARVIS_USER/.ssh"
