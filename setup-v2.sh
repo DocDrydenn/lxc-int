@@ -437,54 +437,24 @@ else
     echo "User '$JARVIS_USER' already exists."
 fi
 
-# ── Jarvis User Group Management ─────────────────────────────
-echo "Configuring groups for $JARVIS_USER..."
-
-# Remove from sudo group on Ubuntu/Mint/Debian to prevent conflicts
+# Remove from sudo group to avoid conflicts
 if groups "$JARVIS_USER" | grep -q "\bsudo\b"; then
-    echo "Removing $JARVIS_USER from sudo group to avoid rule conflicts..."
-    deluser "$JARVIS_USER" sudo
+    deluser "$JARVIS_USER" sudo 2>/dev/null || true
 fi
 
-# Optional: Keep in other useful groups
-usermod -aG docker "$JARVIS_USER" 2>/dev/null || true   # For docker commands without sudo
-
-# ── Secure Scoped Sudoers for Jarvis (Clean & Valid) ─────────────────────────────
-echo "Setting up scoped sudo permissions for $JARVIS_USER (Hermes-Agent)..."
+# === Simple & Reliable Sudo (Recommended for Hermes-Agent) ===
+echo "Setting up passwordless sudo for $JARVIS_USER..."
 
 cat > /etc/sudoers.d/99-jarvis << 'EOF'
-# Hermes-Agent (Jarvis) - Clean rules using only full paths
-
-# Package Management
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt-get *
-
-# Docker
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker *
-
-# Systemd
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl *
-
-# Diagnostics
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/journalctl *
-jarvis ALL=(ALL) NOPASSWD: /bin/ping *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/df *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/free *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/top *
-
-# ZFS
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool *
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs *
-
-# Proxmox
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/pct *
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/qm *
+# Jarvis - Full passwordless access for AI agent
+# This is the most reliable method on Mint/Ubuntu for autonomous operation
+jarvis ALL=(ALL) NOPASSWD: ALL
 EOF
 
 chmod 0440 /etc/sudoers.d/99-jarvis
 rm -f /etc/sudoers.d/jarvis
 
-echo "✅ Clean scoped sudo permissions configured for jarvis."
+echo "✅ Jarvis configured with full passwordless sudo (reliable for agent use)."
 
 # SSH Key Setup for Jarvis
 SSH_DIR="/home/$JARVIS_USER/.ssh"
