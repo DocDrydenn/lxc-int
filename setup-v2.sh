@@ -449,29 +449,24 @@ fi
 # Optional: Keep in other useful groups
 usermod -aG docker "$JARVIS_USER" 2>/dev/null || true   # For docker commands without sudo
 
-# ── Secure Scoped Sudoers for Jarvis (Robust for Mint/Ubuntu) ─────────────────────────────
+# ── Secure Scoped Sudoers for Jarvis (Clean & Valid) ─────────────────────────────
 echo "Setting up scoped sudo permissions for $JARVIS_USER (Hermes-Agent)..."
 
 cat > /etc/sudoers.d/99-jarvis << 'EOF'
-# Hermes-Agent (Jarvis) - Highest priority + robust rules for Mint/Ubuntu
+# Hermes-Agent (Jarvis) - Clean rules using only full paths
 
-# Package Management - Broad rules to handle command resolution quirks
+# Package Management
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt *
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt-get *
-jarvis ALL=(ALL) NOPASSWD: apt *
-jarvis ALL=(ALL) NOPASSWD: apt-get *
 
 # Docker
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker *
-jarvis ALL=(ALL) NOPASSWD: docker *
 
 # Systemd
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl *
-jarvis ALL=(ALL) NOPASSWD: systemctl *
 
 # Diagnostics
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/journalctl *
-jarvis ALL=(ALL) NOPASSWD: journalctl *
 jarvis ALL=(ALL) NOPASSWD: /bin/ping *
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/df *
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/free *
@@ -489,7 +484,7 @@ EOF
 chmod 0440 /etc/sudoers.d/99-jarvis
 rm -f /etc/sudoers.d/jarvis
 
-echo "✅ Robust scoped sudo permissions configured for jarvis."
+echo "✅ Clean scoped sudo permissions configured for jarvis."
 
 # SSH Key Setup for Jarvis
 SSH_DIR="/home/$JARVIS_USER/.ssh"
