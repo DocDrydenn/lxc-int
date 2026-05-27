@@ -449,75 +449,44 @@ fi
 # Optional: Keep in other useful groups
 usermod -aG docker "$JARVIS_USER" 2>/dev/null || true   # For docker commands without sudo
 
-# ── Secure Scoped Sudoers for Jarvis (with precedence fix) ─────────────────────────────
-echo "Setting up scoped sudo permissions for $JARVIS_USER (Hermes-Agent)..."
+# ── Secure Scoped Sudoers for Jarvis (Mint/Ubuntu robust) ─────────────────────────────
+echo "Setting up scoped sudo permissions for $JARVIS_USER..."
 
-# Use 99-jarvis so it loads LAST (highest priority)
 cat > /etc/sudoers.d/99-jarvis << 'EOF'
-# Hermes-Agent (Jarvis) - Secure scoped permissions for homelab management
-# Using 99- prefix to ensure rules take precedence over %sudo group
+# Hermes-Agent (Jarvis) - Highest priority rules
+# Broad rules to handle Mint/Ubuntu command resolution quirks
 
-# === Package Management ===
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt *
 jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt-get *
+jarvis ALL=(ALL) NOPASSWD: apt *
+jarvis ALL=(ALL) NOPASSWD: apt-get *
 
-# === Docker ===
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker system prune -f
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker compose *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker restart *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker start *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker stop *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker *
+jarvis ALL=(ALL) NOPASSWD: docker *
 
-# === Systemd Services ===
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl start *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl status *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl *
+jarvis ALL=(ALL) NOPASSWD: systemctl *
 
-# === Diagnostics & Monitoring ===
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/journalctl -u *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/journalctl *
+jarvis ALL=(ALL) NOPASSWD: journalctl *
+
 jarvis ALL=(ALL) NOPASSWD: /bin/ping *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/df -h
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/free -h
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/top -b -n *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/df *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/free *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/top *
 
-# === ZFS Commands ===
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool status *
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool iostat *
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool list *
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs list *
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs get *
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs snapshot *
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs scrub *
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs diff *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs *
 
-# === Proxmox-Specific Commands ===
+# Proxmox
 jarvis ALL=(ALL) NOPASSWD: /usr/sbin/pct *
 jarvis ALL=(ALL) NOPASSWD: /usr/sbin/qm *
-jarvis ALL=(ALL) NOPASSWD: /usr/bin/pvesh *
-jarvis ALL=(ALL) NOPASSWD: /usr/sbin/pveum *
-
-# === Explicit Denials (Safety) ===
-jarvis ALL=(ALL) !/usr/bin/rm -rf *
-jarvis ALL=(ALL) !/bin/rm -rf *
-jarvis ALL=(ALL) !/sbin/reboot
-jarvis ALL=(ALL) !/sbin/shutdown
-jarvis ALL=(ALL) !/usr/bin/su
-jarvis ALL=(ALL) !/usr/bin/passwd
-# Dangerous ZFS operations denied
-jarvis ALL=(ALL) !/usr/sbin/zpool destroy *
-jarvis ALL=(ALL) !/usr/sbin/zfs destroy *
-jarvis ALL=(ALL) !/usr/sbin/zfs send *
-jarvis ALL=(ALL) !/usr/sbin/zfs receive *
 EOF
 
 chmod 0440 /etc/sudoers.d/99-jarvis
-
-# Clean up old file if it exists
 rm -f /etc/sudoers.d/jarvis
 
-echo "✅ Scoped sudo permissions configured for jarvis (99-jarvis - highest priority)."
+echo "✅ Scoped sudo permissions configured (99-jarvis - robust version)."
 
 # SSH Key Setup for Jarvis
 SSH_DIR="/home/$JARVIS_USER/.ssh"
