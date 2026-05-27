@@ -439,24 +439,25 @@ fi
 
 # Remove from sudo group to avoid conflicts
 if groups "$JARVIS_USER" | grep -q "\bsudo\b"; then
+    echo "Removing $JARVIS_USER from sudo group..."
     deluser "$JARVIS_USER" sudo 2>/dev/null || true
 fi
 
-# === Simple & Reliable Sudo (Recommended for Hermes-Agent) ===
-echo "Setting up passwordless sudo for $JARVIS_USER..."
+# ── Full Passwordless Sudo (Simple & Reliable) ─────────────────────────────
+echo "Setting up full passwordless sudo for $JARVIS_USER (Hermes-Agent)..."
 
 cat > /etc/sudoers.d/99-jarvis << 'EOF'
-# Jarvis - Full passwordless access for AI agent
-# This is the most reliable method on Mint/Ubuntu for autonomous operation
+# Jarvis AI Agent - Full passwordless sudo
+# Most reliable configuration for autonomous operation on Debian/Mint/Ubuntu
 jarvis ALL=(ALL) NOPASSWD: ALL
 EOF
 
 chmod 0440 /etc/sudoers.d/99-jarvis
 rm -f /etc/sudoers.d/jarvis
 
-echo "✅ Jarvis configured with full passwordless sudo (reliable for agent use)."
+echo "✅ Jarvis configured with full passwordless sudo."
 
-# SSH Key Setup for Jarvis
+# ── SSH Key Setup for Jarvis ─────────────────────────────
 SSH_DIR="/home/$JARVIS_USER/.ssh"
 mkdir -p "$SSH_DIR"
 chmod 700 "$SSH_DIR"
