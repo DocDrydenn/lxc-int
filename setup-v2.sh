@@ -437,13 +437,75 @@ else
     echo "User '$JARVIS_USER' already exists."
 fi
 
-# Passwordless sudo
-echo "Setting up passwordless sudo for $JARVIS_USER..."
-cat > /etc/sudoers.d/jarvis << EOF
-$JARVIS_USER ALL=(ALL) NOPASSWD: ALL
+# ── Secure Scoped Sudoers for Jarvis ─────────────────────────────
+echo "Setting up scoped sudo permissions for $JARVIS_USER (Hermes-Agent)..."
+
+cat > /etc/sudoers.d/jarvis << 'EOF'
+# Hermes-Agent (Jarvis) - Secure scoped permissions for homelab management
+
+# === Package Management ===
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt update
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt upgrade
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt full-upgrade
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt autoremove
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt autoclean
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt install *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt remove *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/apt purge *
+
+# === Docker ===
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker system prune -f
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker compose *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker restart *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker start *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/docker stop *
+
+# === Systemd Services ===
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl start *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl status *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload *
+
+# === Diagnostics & Monitoring ===
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/journalctl -u *
+jarvis ALL=(ALL) NOPASSWD: /bin/ping *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/df -h
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/free -h
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/top -b -n *
+
+# === ZFS Commands (Safe monitoring + basic maintenance) ===
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool status *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool iostat *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zpool list *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs list *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs get *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs snapshot *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs scrub *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/zfs diff *
+
+# === Proxmox-Specific Commands ===
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/pct *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/qm *
+jarvis ALL=(ALL) NOPASSWD: /usr/bin/pvesh *
+jarvis ALL=(ALL) NOPASSWD: /usr/sbin/pveum *
+
+# === Explicit Denials (Safety) ===
+jarvis ALL=(ALL) !/usr/bin/rm -rf *
+jarvis ALL=(ALL) !/bin/rm -rf *
+jarvis ALL=(ALL) !/sbin/reboot
+jarvis ALL=(ALL) !/sbin/shutdown
+jarvis ALL=(ALL) !/usr/bin/su
+jarvis ALL=(ALL) !/usr/bin/passwd
+# Dangerous ZFS operations denied
+jarvis ALL=(ALL) !/usr/sbin/zpool destroy *
+jarvis ALL=(ALL) !/usr/sbin/zfs destroy *
+jarvis ALL=(ALL) !/usr/sbin/zfs send *
+jarvis ALL=(ALL) !/usr/sbin/zfs receive *
 EOF
+
 chmod 0440 /etc/sudoers.d/jarvis
-echo "Passwordless sudo configured for jarvis."
+echo "✅ Scoped sudo permissions configured for jarvis (ZFS + Proxmox support)."
 
 # SSH Key Setup for Jarvis
 SSH_DIR="/home/$JARVIS_USER/.ssh"
