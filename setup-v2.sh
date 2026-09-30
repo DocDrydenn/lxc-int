@@ -495,6 +495,77 @@ echo "   → Has full passwordless sudo"
 echo "   → SSH keys installed"
 echo ""
 
+# ── sysup helper (apt cycle + optional PatchMon report) ─────────────
+echo ""
+echo "=== Installing sysup ==="
+
+cat > /usr/local/bin/sysup << 'EOF'
+#!/usr/bin/env bash
+# sysup — apt update/upgrade/cleanup, then PatchMon report if installed.
+set -u
+
+STAY=0
+if [[ "${1:-}" == "--stay" ]]; then
+  STAY=1
+fi
+
+clear
+
+echo "==> apt update"
+sudo apt update || { echo "apt update failed"; exit 1; }
+
+echo "==> apt upgrade -y"
+sudo apt upgrade -y || { echo "apt upgrade failed"; exit 1; }
+
+echo "==> apt autoremove -y"
+sudo apt autoremove -y
+
+echo "==> apt autoclean"
+sudo apt autoclean
+
+PATCHMON="/usr/local/bin/patchmon-agent"
+if [[ -x "$PATCHMON" ]]; then
+  echo "==> patchmon-agent report"
+  sudo "$PATCHMON" report || echo "warning: patchmon report failed"
+else
+  echo "==> patchmon-agent not present, skipping"
+fi
+
+echo "==> done"
+if [[ "$STAY" -eq 0 ]]; then
+  exit
+fi
+EOF
+
+chmod 755 /usr/local/bin/sysup
+echo "Installed /usr/local/bin/sysup"
+
+# Aliases for login shells (root + jarvis + any future users)
+cat > /etc/profile.d/zz-sysup-aliases.sh << 'EOF'
+# sysup aliases (managed by lxc-int setup-v2.sh)
+alias sysup='/usr/local/bin/sysup'
+alias sysup-stay='/usr/local/bin/sysup --stay'
+EOF
+chmod 644 /etc/profile.d/zz-sysup-aliases.sh
+
+# Also pin into root and jarvis bashrc so non-login interactive shells get them
+for BASHRC in /root/.bashrc /home/jarvis/.bashrc; do
+  if [ -f "$BASHRC" ] || [ "$(dirname "$BASHRC")" = "/root" ] || [ -d "$(dirname "$BASHRC")" ]; then
+    touch "$BASHRC"
+    if ! grep -qF "alias sysup=" "$BASHRC" 2>/dev/null; then
+      {
+        echo ""
+        echo "# sysup (managed by lxc-int setup-v2.sh)"
+        echo "alias sysup='/usr/local/bin/sysup'"
+        echo "alias sysup-stay='/usr/local/bin/sysup --stay'"
+      } >> "$BASHRC"
+    fi
+  fi
+done
+chown jarvis:jarvis /home/jarvis/.bashrc 2>/dev/null || true
+
+echo "✅ sysup ready:  sysup  |  sysup-stay"
+
 # Create/update dynamic MOTD script in /etc/profile.d (always overwrite to apply any changes)
 MOTD_SCRIPT="/etc/profile.d/motd.sh"
 echo "Updating $MOTD_SCRIPT with service icon..."
