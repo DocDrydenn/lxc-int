@@ -31,8 +31,6 @@ if grep -qF "/opt/scripts/system-updates/system-updates.sh" /etc/crontab; then
     else
         echo "Upgrading system-updates cron job to include logging..."
         sed -i '/\/opt\/scripts\/system-updates\/system-updates.sh[[:space:]]*$/d' /etc/crontab
-        # Also remove any very old variants without flags if you want to be thorough
-        # sed -i '/\/opt\/scripts\/system-updates\/system-updates.sh/d' /etc/crontab   # broader, use with caution
         {
             echo ""
             echo "$CRON_COMMENT"
@@ -82,7 +80,7 @@ if command -v docker >/dev/null 2>&1; then
     fi
 
     # Ensure we're in the dir
-    cd "$DOCKCHECK_DIR" || { echo "Failed to cd into $DOCKCHECK_DIR — skipping dockcheck."; continue; }
+    cd "$DOCKCHECK_DIR" || { echo "Failed to cd into $DOCKCHECK_DIR — skipping dockcheck."; }
 
     # ────────────────────────────────────────────────────────────────
     echo "Ensuring regctl dependency is installed (required by dockcheck, non-interactive)..."
@@ -92,9 +90,9 @@ if command -v docker >/dev/null 2>&1; then
     case $ARCH in
         x86_64) REGCTL_ARCH="amd64" ;;
         aarch64|arm64) REGCTL_ARCH="arm64" ;;
-        *) 
+        *)
             echo "Warning: Unsupported architecture ($ARCH) for native regctl binary. dockcheck may need a container wrapper later. Skipping auto-install."
-            REGCTL_ARCH="" 
+            REGCTL_ARCH=""
             ;;
     esac
 
@@ -112,15 +110,12 @@ if command -v docker >/dev/null 2>&1; then
                 # Download binary
                 curl -L -o regctl "https://github.com/regclient/regclient/releases/download/v${LATEST_TAG}/regctl-linux-${REGCTL_ARCH}" || {
                     echo "Download failed — skipping regctl install."
-                    continue
                 }
 
-                chmod +x regctl
-                echo "regctl installed locally in $DOCKCHECK_DIR/regctl"
-
-                # Optional: Move to /usr/local/bin for global PATH (recommended for cron reliability)
-                # mv regctl /usr/local/bin/regctl || echo "Could not move to /usr/local/bin — keeping local."
-                # But keeping local is fine since dockcheck checks PWD too
+                if [ -f regctl ]; then
+                    chmod +x regctl
+                    echo "regctl installed locally in $DOCKCHECK_DIR/regctl"
+                fi
             fi
         else
             echo "regctl already present — skipping install."
@@ -136,7 +131,6 @@ if command -v docker >/dev/null 2>&1; then
             echo "Created dockcheck.config from default.config"
         else
             echo "Warning: default.config not found in repo — skipping config setup."
-            continue
         fi
     else
         echo "dockcheck.config already exists — preserving it and only updating notification settings."
@@ -147,18 +141,18 @@ if command -v docker >/dev/null 2>&1; then
         DISCORD_WEBHOOK=$(</opt/scripts/system-updates/.webhook)
     else
         echo "Warning: No .webhook file found — cannot set Discord URL. Skipping dockcheck config update."
-        continue
+        DISCORD_WEBHOOK=""
     fi
 
-    # Update the two key lines in dockcheck.config (using sed for in-place replacement)
-        
-    # Update NOTIFY_CHANNELS: remove leading # (if present), ignore leading spaces, set to "discord"
-    sed -i 's/^[[:space:]]*#*[[:space:]]*NOTIFY_CHANNELS=.*/NOTIFY_CHANNELS="discord"/' dockcheck.config
+    if [ -n "$DISCORD_WEBHOOK" ] && [ -f "dockcheck.config" ]; then
+        # Update NOTIFY_CHANNELS: remove leading # (if present), ignore leading spaces, set to "discord"
+        sed -i 's/^[[:space:]]*#*[[:space:]]*NOTIFY_CHANNELS=.*/NOTIFY_CHANNELS="discord"/' dockcheck.config
 
-    # Update DISCORD_WEBHOOK_URL: same idea, set full value with quotes (using | as delimiter to avoid / escaping issues)
-    sed -i "s|^[[:space:]]*#*[[:space:]]*DISCORD_WEBHOOK_URL=.*|DISCORD_WEBHOOK_URL=\"$DISCORD_WEBHOOK\"|" dockcheck.config
+        # Update DISCORD_WEBHOOK_URL: same idea, set full value with quotes (using | as delimiter to avoid / escaping issues)
+        sed -i "s|^[[:space:]]*#*[[:space:]]*DISCORD_WEBHOOK_URL=.*|DISCORD_WEBHOOK_URL=\"$DISCORD_WEBHOOK\"|" dockcheck.config
 
-    echo "Updated dockcheck.config with Discord notification settings."
+        echo "Updated dockcheck.config with Discord notification settings."
+    fi
 
     # ── Dockcheck cron job ───────────────────────────────────────────
     DOCKCHECK_CRON_COMMENT="# Docker Image Update Check (dockcheck) - checks only, notifies via Discord (added $(date '+%Y-%m-%d %H:%M'))"
@@ -222,7 +216,7 @@ if ! command -v fastfetch >/dev/null 2>&1; then
     case $ARCH in
         amd64)   DL_ARCH="amd64" ;;
         arm64|aarch64) DL_ARCH="aarch64" ;;
-        *) 
+        *)
             echo "Unsupported architecture ($ARCH) for fastfetch .deb — install manually from https://github.com/fastfetch-cli/fastfetch/releases"
             DL_ARCH=""
             ;;
@@ -532,37 +526,53 @@ else
 fi
 
 echo "==> done"
-if [[ "$STAY" -eq 0 ]]; then
-  exit
-fi
 EOF
 
 chmod 755 /usr/local/bin/sysup
 echo "Installed /usr/local/bin/sysup"
 
-# Aliases for login shells (root + jarvis + any future users)
-cat > /etc/profile.d/zz-sysup-aliases.sh << 'EOF'
-# sysup aliases (managed by lxc-int setup-v2.sh)
-alias sysup='/usr/local/bin/sysup'
-alias sysup-stay='/usr/local/bin/sysup --stay'
+# Functions (not aliases) so `exit` closes the SSH session
+SYSUP_FUNCS=$(cat << 'EOF'
+# BEGIN lxc-int sysup
+sysup() {
+  /usr/local/bin/sysup
+  exit
+}
+sysup-stay() {
+  /usr/local/bin/sysup --stay
+}
+# END lxc-int sysup
+EOF
+)
+
+cat > /etc/profile.d/zz-sysup-aliases.sh << EOF
+# sysup (managed by lxc-int setup-v2.sh)
+$SYSUP_FUNCS
 EOF
 chmod 644 /etc/profile.d/zz-sysup-aliases.sh
 
-# Also pin into root and jarvis bashrc so non-login interactive shells get them
-for BASHRC in /root/.bashrc /home/jarvis/.bashrc; do
-  if [ -f "$BASHRC" ] || [ "$(dirname "$BASHRC")" = "/root" ] || [ -d "$(dirname "$BASHRC")" ]; then
-    touch "$BASHRC"
-    if ! grep -qF "alias sysup=" "$BASHRC" 2>/dev/null; then
-      {
-        echo ""
-        echo "# sysup (managed by lxc-int setup-v2.sh)"
-        echo "alias sysup='/usr/local/bin/sysup'"
-        echo "alias sysup-stay='/usr/local/bin/sysup --stay'"
-      } >> "$BASHRC"
+install_sysup_shell() {
+    local file="$1"
+    local owner="$2"
+    mkdir -p "$(dirname "$file")"
+    touch "$file"
+    # Strip previous managed block and old alias lines
+    if grep -q '# BEGIN lxc-int sysup' "$file" 2>/dev/null; then
+        sed -i '/# BEGIN lxc-int sysup/,/# END lxc-int sysup/d' "$file"
     fi
-  fi
-done
-chown jarvis:jarvis /home/jarvis/.bashrc 2>/dev/null || true
+    sed -i '/# sysup (managed by lxc-int setup-v2.sh)/d' "$file" 2>/dev/null || true
+    sed -i '/alias sysup=/d' "$file" 2>/dev/null || true
+    sed -i '/alias sysup-stay=/d' "$file" 2>/dev/null || true
+    printf '\n%s\n' "$SYSUP_FUNCS" >> "$file"
+    if [ -n "$owner" ] && [ "$owner" != "root" ]; then
+        chown "$owner":"$owner" "$file" 2>/dev/null || true
+    fi
+}
+
+install_sysup_shell /root/.bashrc root
+if [ -d /home/jarvis ]; then
+    install_sysup_shell /home/jarvis/.bashrc jarvis
+fi
 
 echo "✅ sysup ready:  sysup  |  sysup-stay"
 
